@@ -1,0 +1,78 @@
+﻿services:
+  # 1. PostgreSQL with PostGIS extension enabled
+  - type: pserv
+    name: aegis-db
+    runtime: image
+    image:
+      url: postgis/postgis:15-3.3
+    envVars:
+      - key: POSTGRES_USER
+        value: aegis_user
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+      - key: POSTGRES_DB
+        value: aegis_db
+    disk:
+      name: postgis-data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 10
+
+  # 2. Redis service for Celery and Pub/Sub
+  - type: redis
+    name: aegis-redis
+    ipAllowList: []
+
+  # 3. FastAPI Backend Web Service
+  - type: web
+    name: aegis-api
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    plan: standard
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aegis-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aegis-redis
+          property: connectionString
+      - key: CARD_DB_PATH
+        value: /blastdb/card_db
+
+  # 4. Celery Worker (Background Worker)
+  - type: worker
+    name: aegis-worker
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerCommand: celery -A tasks.celery_app worker --loglevel=info
+    plan: standard
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aegis-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aegis-redis
+          property: connectionString
+      - key: CARD_DB_PATH
+        value: /blastdb/card_db
+
+  # 5. Frontend Dashboard (Static Site)
+  - type: web
+    name: aegis-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: aegis-api
+          property: host

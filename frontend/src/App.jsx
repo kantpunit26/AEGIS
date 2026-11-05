@@ -7,6 +7,9 @@ import * as d3 from "d3";
 import DeckGL from "@deck.gl/react";
 import { PolygonLayer, ScatterplotLayer } from "@deck.gl/layers";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const WS_BASE = API_BASE.replace(/^http/, "ws");
+
 const GLOBE_RADIUS = 5;
 
 // Helper: Convert GPS coordinates to 3D Cartesian vectors
@@ -235,7 +238,7 @@ function PhylogeneticTreeWidget({ geneName }) {
     if (!geneName) return;
     const fetchTree = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/phylogeny/${encodeURIComponent(geneName)}`);
+        const res = await fetch(`${API_BASE}/api/phylogeny/${encodeURIComponent(geneName)}`);
         if (res.ok) {
           const data = await res.json();
           setTreeData(data);
@@ -374,7 +377,7 @@ function ContainmentDashboard({ focusedOutbreak, onRadiusChange }) {
 
     const fetchSimulation = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/containment/simulate?r0=${r0}&peak_infected=${peakInfected}&total_icu_beds=${icuBeds}&lockdown_factor=${lockdown}`);
+        const res = await fetch(`${API_BASE}/api/containment/simulate?r0=${r0}&peak_infected=${peakInfected}&total_icu_beds=${icuBeds}&lockdown_factor=${lockdown}`);
         if (res.ok) {
           const data = await res.json();
           setMetrics(data);
@@ -471,7 +474,7 @@ function ContainmentDashboard({ focusedOutbreak, onRadiusChange }) {
 function ReportExporterWidget({ outbreakId }) {
   const downloadReport = async (endpoint, filename) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/reports/${endpoint}?outbreak_id=${outbreakId}`);
+      const res = await fetch(`${API_BASE}/api/reports/${endpoint}?outbreak_id=${outbreakId}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -517,7 +520,7 @@ function AlertConfigModal({ isOpen, onClose }) {
     if (!isOpen) return;
     const fetchConfig = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/alerts/config");
+        const res = await fetch(`${API_BASE}/api/alerts/config`);
         if (res.ok) {
           const data = await res.json();
           setWebhookUrl(data.webhook_url || "");
@@ -534,7 +537,7 @@ function AlertConfigModal({ isOpen, onClose }) {
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("http://localhost:8000/api/alerts/config", {
+      const res = await fetch(`${API_BASE}/api/alerts/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -556,7 +559,7 @@ function AlertConfigModal({ isOpen, onClose }) {
   const handleTestAlert = async () => {
     setTestStatus("Sending test alert payload...");
     try {
-      const res = await fetch(`http://localhost:8000/api/alerts/test?webhook_url=${encodeURIComponent(webhookUrl)}`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/api/alerts/test?webhook_url=${encodeURIComponent(webhookUrl)}`, { method: "POST" });
       if (res.ok) {
         setTestStatus("Test Alert Dispatched Successfully!");
       } else {
@@ -655,7 +658,7 @@ export default function App() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/outbreaks");
+        const res = await fetch(`${API_BASE}/api/outbreaks`);
         if (res.ok) {
           const data = await res.json();
           setOutbreaks(data);
@@ -666,7 +669,7 @@ export default function App() {
     };
     fetchHistory();
 
-    const ws = new WebSocket("ws://localhost:8000/ws/alerts");
+    const ws = new WebSocket(`${WS_BASE}/ws/alerts`);
     ws.onopen = () => setWsConnected(true);
     ws.onmessage = (event) => {
       const newAlert = JSON.parse(event.data);
@@ -685,7 +688,7 @@ export default function App() {
     if (!nlQueryText.trim()) return;
     try {
       setStatusMsg("Executing PostGIS Natural Language Query...");
-      const res = await fetch(`http://localhost:8000/api/outbreaks/nl-query?query=${encodeURIComponent(nlQueryText)}`);
+      const res = await fetch(`${API_BASE}/api/outbreaks/nl-query?query=${encodeURIComponent(nlQueryText)}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setNlQueryResult(data.parsed_query);
@@ -713,7 +716,7 @@ export default function App() {
     Object.keys(formData).forEach(key => data.append(key, formData[key]));
 
     try {
-      const res = await fetch("http://localhost:8000/api/upload-fasta", {
+      const res = await fetch(`${API_BASE}/api/upload-fasta`, {
         method: "POST", headers: { Authorization: "Bearer aegis-admin-token" }, body: data,
       });
       if (!res.ok) throw new Error();

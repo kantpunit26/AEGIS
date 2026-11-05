@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@deck.gl/layers": "^9.4.1",
+    "@deck.gl/react": "^9.4.1",
+    "deck.gl": "^9.4.1"
+  }
+}

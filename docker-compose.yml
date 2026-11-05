@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: aegis_postgis
+    environment:
+      POSTGRES_USER: aegis_user
+      POSTGRES_PASSWORD: aegis_secure_pass
+      POSTGRES_DB: aegis_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis_user -d aegis_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: aegis_redis
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./backend
+    container_name: aegis_fastapi
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql://aegis_user:aegis_secure_pass@db:5432/aegis_db
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - blast_data:/blastdb
+
+  celery_worker:
+    build: ./backend
+    container_name: aegis_celery_worker
+    command: celery -A tasks.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://aegis_user:aegis_secure_pass@db:5432/aegis_db
+      REDIS_URL: redis://redis:6379/0
+      CARD_DB_PATH: /blastdb/card_db
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - blast_data:/blastdb
+
+  frontend:
+    build: ./frontend
+    container_name: aegis_frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  postgis_data:
+  blast_data:
